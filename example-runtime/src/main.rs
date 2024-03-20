@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Context;
 use clap::Parser;
 use component::webgpu::{
@@ -10,7 +8,7 @@ use wasmtime::{
     component::{Component, Linker},
     Config, Engine, Store,
 };
-use winit::{event::ElementState, event_loop::EventLoop, window::Window};
+//use winit::{event::ElementState, event_loop::EventLoop};
 
 use wasmtime_wasi::preview2::{self, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
 mod animation_frame;
@@ -63,14 +61,18 @@ wasmtime::component::bindgen!({
         "wasi:io/streams": preview2::bindings::io::streams,
         "component:webgpu/webgpu/gpu-adapter": wgpu_core::id::AdapterId,
         "component:webgpu/webgpu/gpu-device": webgpu::Device,
+        "component:webgpu/webgpu/timer": webgpu::Timer,
+        "component:webgpu/webgpu/gpu-compute-pipeline": webgpu::Pipeline,
         // queue is same as device
         "component:webgpu/webgpu/gpu-queue": webgpu::Device,
+        "component:webgpu/webgpu/gpu-buffer": webgpu::Buffer,
         "component:webgpu/webgpu/gpu-command-encoder": wgpu_core::id::CommandEncoderId,
         "component:webgpu/webgpu/gpu-render-pass-encoder": wgpu_core::command::RenderPass,
+        "component:webgpu/webgpu/gpu-compute-pass-encoder": wgpu_core::command::ComputePass,
         "component:webgpu/webgpu/gpu-shader-module": wgpu_core::id::ShaderModuleId,
         "component:webgpu/webgpu/gpu-render-pipeline": wgpu_core::id::RenderPipelineId,
         "component:webgpu/webgpu/gpu-command-buffer": wgpu_core::id::CommandBufferId,
-        "component:webgpu/webgpu/gpu-buffer": wgpu_core::id::BufferId,
+        //"component:webgpu/webgpu/gpu-buffer": wgpu_core::id::BufferId,
         "component:webgpu/webgpu/gpu-pipeline-layout": wgpu_core::id::PipelineLayoutId,
         "component:webgpu/webgpu/gpu-bind-group-layout": wgpu_core::id::BindGroupLayoutId,
         "component:webgpu/webgpu/gpu-sampler": wgpu_core::id::SamplerId,
@@ -97,113 +99,13 @@ struct HostState {
     pub ctx: WasiCtx,
     pub sender: Sender<HostEvent>,
     pub instance: wgpu_core::global::Global<wgpu_core::identity::IdentityManagerFactory>,
-    pub window: Window,
 }
 
-pub fn listen_to_events(event_loop: EventLoop<()>, sender: Sender<HostEvent>) {
-    use winit::event::{Event, MouseButton, WindowEvent};
-
-    let sender_2 = sender.clone();
-    tokio::spawn(async move {
-        loop {
-            // winit doesn't provide frame callbacks.
-            sender_2.send(HostEvent::Frame).unwrap();
-            tokio::time::sleep(Duration::from_millis(16)).await;
-        }
-    });
-
-    let mut pointer_x: f64 = 0.0;
-    let mut pointer_y: f64 = 0.0;
-
-    event_loop.run(move |event, _target, _control_flow| {
-        // *control_flow = ControlFlow::Poll;
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {}
-            Event::WindowEvent {
-                event: WindowEvent::Resized(new_size),
-                ..
-            } => {
-                sender
-                    .send(HostEvent::CanvasResizeEvent(ResizeEvent {
-                        height: new_size.height,
-                        width: new_size.width,
-                    }))
-                    .unwrap();
-            }
-            Event::WindowEvent {
-                event:
-                    WindowEvent::MouseInput {
-                        button: MouseButton::Left,
-                        state,
-                        ..
-                    },
-                ..
-            } => {
-                let event = match state {
-                    ElementState::Pressed => HostEvent::PointerDownEvent(PointerEvent {
-                        x: pointer_x,
-                        y: pointer_y,
-                    }),
-                    ElementState::Released => HostEvent::PointerUpEvent(PointerEvent {
-                        x: pointer_x,
-                        y: pointer_y,
-                    }),
-                };
-                sender.send(event).unwrap();
-            }
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } => {
-                #[allow(deprecated)]
-                let event = match input.state {
-                    ElementState::Pressed => HostEvent::KeyDownEvent(KeyEvent {
-                        code: input
-                            .virtual_keycode
-                            .map(|k| format!("{k:?}"))
-                            .unwrap_or_default(),
-                        key: input.scancode.to_string(),
-                        alt_key: input.modifiers.shift(),
-                        ctrl_key: input.modifiers.ctrl(),
-                        meta_key: input.modifiers.logo(),
-                        shift_key: input.modifiers.shift(),
-                    }),
-                    ElementState::Released => HostEvent::KeyUpEvent(KeyEvent {
-                        code: input
-                            .virtual_keycode
-                            .map(|k| format!("{k:?}"))
-                            .unwrap_or_default(),
-                        key: input.scancode.to_string(),
-                        alt_key: input.modifiers.shift(),
-                        ctrl_key: input.modifiers.ctrl(),
-                        meta_key: input.modifiers.logo(),
-                        shift_key: input.modifiers.shift(),
-                    }),
-                };
-                sender.send(event).unwrap();
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
-                pointer_x = position.x;
-                pointer_y = position.y;
-                let event = HostEvent::PointerMoveEvent(PointerEvent {
-                    x: pointer_x,
-                    y: pointer_y,
-                });
-                sender.send(event).unwrap();
-            }
-            _ => (),
-        }
-    });
-}
 
 impl HostState {
-    fn new(event_loop: &EventLoop<()>, sender: Sender<HostEvent>) -> Self {
+    fn new(
+        sender: Sender<HostEvent>
+    ) -> Self {
         Self {
             table: ResourceTable::new(),
             ctx: WasiCtxBuilder::new().inherit_stdio().build(),
@@ -218,7 +120,6 @@ impl HostState {
                     gles_minor_version: wgpu_types::Gles3MinorVersion::default(),
                 },
             ),
-            window: Window::new(event_loop).unwrap(),
         }
     }
 }
@@ -272,6 +173,7 @@ async fn main() -> anyhow::Result<()> {
     let mut config = Config::default();
     config.wasm_component_model(true);
     config.async_support(true);
+    println!("initializae engine");
     let engine = Engine::new(&config)?;
     let mut linker = Linker::new(&engine);
 
@@ -287,27 +189,25 @@ async fn main() -> anyhow::Result<()> {
     preview2::bindings::io::streams::add_to_linker(&mut linker, |state| state)?;
 
     Example::add_root_to_linker(&mut linker, |state: &mut HostState| state)?;
-
-    let event = winit::event_loop::EventLoopBuilder::new().build();
-
-    let host_state = HostState::new(&event, sender.clone());
+    println!("finish linker setup");
+    
+    let host_state = HostState::new(sender.clone());
 
     let mut store = Store::new(&engine, host_state);
-
+    println!("finish state setup");
     let wasm_path = format!("../example-apps/{}/out.wasm", args.example);
 
     let component =
         Component::from_file(&engine, &wasm_path).context("Component file not found")?;
-
+    println!("component loaded");
     let (instance, _) = Example::instantiate_async(&mut store, &component, &linker)
         .await
         .unwrap();
-
-    tokio::spawn(async move {
+    println!("start module");
+    let _ = tokio::spawn(async move {
         instance.call_start(&mut store).await.unwrap();
-    });
-
-    listen_to_events(event, sender);
+    }).await;
+    println!("module executed");
 
     Ok(())
 }

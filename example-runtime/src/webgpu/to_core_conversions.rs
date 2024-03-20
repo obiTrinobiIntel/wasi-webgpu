@@ -72,7 +72,7 @@ impl<'a> ToCore<wgpu_core::binding_model::BindingResource<'a>> for webgpu::GpuBi
 impl<'a> ToCore<wgpu_core::binding_model::BufferBinding> for webgpu::GpuBufferBinding {
     fn to_core(self, table: &ResourceTable) -> wgpu_core::binding_model::BufferBinding {
         wgpu_core::binding_model::BufferBinding {
-            buffer_id: self.buffer.to_core(table),
+            buffer_id: self.buffer.to_core(table).buf,
             // TODO: Not sure we can default here.
             offset: self.offset.unwrap_or_default(),
             size: self.size.map(|s| s.try_into().unwrap()),
@@ -157,6 +157,21 @@ impl<'a> ToCore<wgpu_core::pipeline::RenderPipelineDescriptor<'a>>
     }
 }
 
+impl<'a> ToCore<wgpu_core::pipeline::ComputePipelineDescriptor<'a>>
+    for webgpu::GpuComputePipelineDescriptor
+{
+    fn to_core(self, table: &ResourceTable) -> wgpu_core::pipeline::ComputePipelineDescriptor<'a> {
+        wgpu_core::pipeline::ComputePipelineDescriptor {
+            // TODO: remove defaults
+            label: Default::default(),
+            layout: Default::default(),
+            stage : self.compute.to_core(table),
+            //module : self.compute.to_core(table),
+            //entry_point &self.compute_entries[0],
+        }
+    }
+}
+
 impl<'a> ToCore<wgpu_core::pipeline::FragmentState<'a>> for webgpu::GpuFragmentState {
     fn to_core(self, table: &ResourceTable) -> wgpu_core::pipeline::FragmentState<'a> {
         wgpu_core::pipeline::FragmentState {
@@ -185,6 +200,16 @@ impl<'a> ToCore<wgpu_core::pipeline::VertexState<'a>> for webgpu::GpuVertexState
             },
             // TODO: Remove Default?
             buffers: Default::default(),
+        }
+    }
+}
+
+impl<'a> ToCore<wgpu_core::pipeline::ProgrammableStageDescriptor<'a>> for webgpu::GpuProgrammableStage {
+    fn to_core(self, table: &ResourceTable) -> wgpu_core::pipeline::ProgrammableStageDescriptor<'a> {
+        wgpu_core::pipeline::ProgrammableStageDescriptor {
+            module: self.module.to_core(table),
+            // TODO fix me
+            entry_point: std::borrow::Cow::Borrowed("main"),
         }
     }
 }
@@ -347,6 +372,19 @@ impl<'a> ToCore<wgpu_core::command::RenderPassDescriptor<'a>> for webgpu::GpuRen
                 .map(|c| Some(c.to_core(table)))
                 .collect::<Vec<_>>()
                 .into(),
+            // TODO: remove default
+            ..Default::default() // depth_stencil_attachment: self.depth_stencil_attachment,
+                                 // timestamp_writes: self.timestamp_writes,
+                                 // occlusion_query_set: self.occlusion_query_set,
+                                 // TODO: self.max_draw_count not used
+        }
+    }
+}
+
+impl<'a> ToCore<wgpu_core::command::ComputePassDescriptor<'a>> for webgpu::GpuComputePassDescriptor {
+    fn to_core(self, _: &ResourceTable) -> wgpu_core::command::ComputePassDescriptor<'a> {
+        wgpu_core::command::ComputePassDescriptor {
+            label: self.label.map(|l| l.into()),
             // TODO: remove default
             ..Default::default() // depth_stencil_attachment: self.depth_stencil_attachment,
                                  // timestamp_writes: self.timestamp_writes,

@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use wasmtime::component::Resource;
 
-use crate::graphics_context::{GraphicsContext, GraphicsContextBuffer, GraphicsContextKind};
-use crate::{HostEvent, HostState};
+use crate::graphics_context::{GraphicsContext, GraphicsContextBuffer};
+use crate::{HostState};
 
 #[derive(Clone)]
 pub struct Surface {
@@ -51,37 +51,8 @@ impl From<softbuffer::Buffer<'static>> for FrameBuffer {
 impl crate::component::webgpu::frame_buffer::Host for HostState {
     fn connect_graphics_context(
         &mut self,
-        graphics_context: Resource<GraphicsContext>,
+        _: Resource<GraphicsContext>,
     ) -> wasmtime::Result<()> {
-        let context = unsafe { softbuffer::Context::new(&self.window) }.unwrap();
-        let mut surface = unsafe { softbuffer::Surface::new(&context, &self.window) }.unwrap();
-
-        let size = self.window.inner_size();
-
-        let _ = surface.resize(
-            size.width.try_into().unwrap(),
-            size.height.try_into().unwrap(),
-        );
-
-        let surface: Surface = surface.into();
-
-        let mut receiver = self.sender.subscribe();
-        let mut surface_clone = surface.clone();
-
-        tokio::spawn(async move {
-            loop {
-                let event = receiver.recv().await.unwrap();
-                if let HostEvent::CanvasResizeEvent(event) = event {
-                    surface_clone.resize(
-                        event.width.try_into().unwrap(),
-                        event.height.try_into().unwrap(),
-                    );
-                }
-            }
-        });
-
-        let graphics_context = self.table.get_mut(&graphics_context).unwrap();
-        graphics_context.kind = Some(GraphicsContextKind::FrameBuffer(surface));
         Ok(())
     }
 }

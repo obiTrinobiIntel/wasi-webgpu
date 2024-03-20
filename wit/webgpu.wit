@@ -19,6 +19,8 @@ interface webgpu {
   resource allow-shared-buffer-source { }
 
   get-gpu: func() -> gpu;
+  new-timer: func() -> timer;
+
   record gpu-object-descriptor-base {
     label: option<string>,
   }
@@ -73,6 +75,12 @@ interface webgpu {
     get-preferred-canvas-format: func() -> gpu-texture-format;
     wgsl-language-features: func() -> wgsl-language-features;
   }
+
+  resource timer {
+    tick: func(); 
+    tock: func();
+  }
+
   resource gpu-adapter {
     features: func() -> gpu-supported-features;
     limits: func() -> gpu-supported-limits;
@@ -246,6 +254,7 @@ interface webgpu {
     set-label: func(label: string);
   }
   resource gpu-buffer {
+    clone: func() -> gpu-buffer;
     size: func() -> gpu-size64-out;
     usage: func() -> gpu-flags-constant;
     map-state: func() -> gpu-buffer-map-state;
@@ -261,6 +270,7 @@ interface webgpu {
     size: gpu-size64,
     usage: gpu-buffer-usage-flags,
     mapped-at-creation: option<bool>,
+    context: option<list<u8>>,
   }
   // flags gpu-buffer-usage {
   //   map-read,
@@ -888,7 +898,7 @@ interface webgpu {
     set-pipeline: func(pipeline: borrow<gpu-compute-pipeline>);
     dispatch-workgroups: func(workgroup-count-x: gpu-size32, workgroup-count-y: option<gpu-size32>, workgroup-count-z: option<gpu-size32>);
     dispatch-workgroups-indirect: func(indirect-buffer: gpu-buffer, indirect-offset: gpu-size64);
-    end: func();
+    end: static func(self: gpu-compute-pass-encoder, non-standard-encoder: borrow<gpu-command-encoder>);
     label: func() -> string;
     set-label: func(label: string);
     push-debug-group: func(group-label: string);

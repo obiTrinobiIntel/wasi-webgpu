@@ -56,12 +56,14 @@ impl crate::component::webgpu::mini_canvas::HostMiniCanvas for HostState {
 
     fn height(&mut self, mini_canvas: Resource<MiniCanvas>) -> wasmtime::Result<u32> {
         let _mini_canvas = self.table.get(&mini_canvas).unwrap();
-        Ok(self.window.inner_size().height)
+        //Ok(self.window.inner_size().height)
+        Ok(1)
     }
 
     fn width(&mut self, mini_canvas: Resource<MiniCanvas>) -> wasmtime::Result<u32> {
         let _mini_canvas = self.table.get(&mini_canvas).unwrap();
-        Ok(self.window.inner_size().width)
+        //Ok(self.window.inner_size().width)
+        Ok(1)
     }
 
     fn drop(&mut self, _self_: Resource<MiniCanvas>) -> wasmtime::Result<()> {
